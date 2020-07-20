@@ -1,6 +1,7 @@
 """Install games without GUI"""
 # Standard Library
 import os
+import sys
 import time
 from gettext import gettext as _
 
@@ -12,10 +13,9 @@ from lutris.util import jobs, system
 from lutris.util.log import logger
 from lutris.util.downloader import Downloader
 
+class UnattendedInstall:
 
-class SilenInstall:
-
-    """silent install process."""
+    """unattended install process."""
 
     def __init__(
             self,
@@ -39,11 +39,12 @@ class SilenInstall:
         self._print = cmd_print
         self.commandline = commandline
 
+
         if system.path_exists(self.installer_file):
             self.on_scripts_obtained(interpreter.read_script(self.installer_file))
         else:
             self._print(self.commandline, _("Waiting for response from %s" % settings.SITE_URL))
-            logger.info(_("Waiting for response from %s" % settings.SITE_URL))
+            logger.debug(_("Waiting for response from %s" % settings.SITE_URL))
             jobs.AsyncCall(
                 interpreter.fetch_script,
                 self.on_scripts_obtained,
@@ -88,7 +89,7 @@ class SilenInstall:
             self.interpreter = interpreter.ScriptInterpreter(install_script, self)
         except MissingGameDependency as ex:
             # call recursive dependencies
-            SilenInstall(
+            UnattendedInstall(
                 game_slug=ex.slug
             )
 
@@ -102,7 +103,7 @@ class SilenInstall:
 
             self.interpreter.target_path = self.install_path
             self._print(self.commandline, _("install Folder %s" % self.interpreter.target_path))
-            logger.info("No install script found")
+            logger.debug(_("install Folder %s" % self.interpreter.target_path))
 
         try:
             self.interpreter.check_runner_install()
@@ -123,13 +124,14 @@ class SilenInstall:
         pass
 
     # required by interpreter
-    def set_cancle_butten_sensitive(self):
+    def set_cancel_butten_sensitive(self, sensitivity):
         pass
 
     # required by interpreter
     def continue_button_hide(self):
         pass
 
+   # required by interpreter
     def attach_logger(self, command):
         pass
 
@@ -141,15 +143,15 @@ class SilenInstall:
 
     def on_install_finished(self):
         self._print(self.commandline, "finished install")
-        logger.info("finished install")
+        logger.debug("finished install")
         sys.exit()
         # end program
 
     def input_menu(self, alias, options, preselect, has_entry, callback):
         """Display an input request as a dropdown menu with options."""
         # not sure what to do here...
-        self._print(self.commandline, "input menu not supported for silent install")
-        logger.error("input menu not supported for silent install")
+        self._print(self.commandline, "input menu not supported for unattended install")
+        logger.error("input menu not supported for unattended install")
 
 
     def ask_user_for_file(self, message):
@@ -171,7 +173,7 @@ class SilenInstall:
             return None
 
         self._print(self.commandline, _("Downloading %s to %s") % (file_uri, dest_file))
-        logger.info("Downloading %s to %s", file_uri, dest_file)
+        logger.debug("Downloading %s to %s", file_uri, dest_file)
         self.downloader.start()
 
         while self.downloader.check_progress() != 1.0:

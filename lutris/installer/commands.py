@@ -365,7 +365,7 @@ class CommandsMixin:
         """
         self._check_required_params("name", data, "task")
         if self.parent:
-            GLib.idle_add(self.parent.cancel_button_set_sensitive, False)
+            self.parent.set_cancel_butten_sensitive(False)
         runner_name, task_name = self._get_task_runner_and_name(data.pop("name"))
 
         wine_version = None
@@ -397,7 +397,7 @@ class CommandsMixin:
 
         task = import_task(runner_name, task_name)
         thread = task(**data)
-        GLib.idle_add(self.parent.cancel_button_set_sensitive, True)
+        self.parent.set_cancel_butten_sensitive(True)
         if isinstance(thread, MonitoredCommand):
             # Monitor thread and continue when task has executed
             GLib.idle_add(self.parent.attach_logger, thread)
