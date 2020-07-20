@@ -461,7 +461,7 @@ class Application(Gtk.Application):
                     commandline=command_line
                 )
             return 0
-        
+
         if action == "uninstall":
             if not db_game or not db_game["id"]:
                 logger.warning("No game found in library")
@@ -469,7 +469,7 @@ class Application(Gtk.Application):
             self._print(command_line, _("Uninstall Game %s") % db_game["slug"])
             Game(db_game["id"]).remove(True, False)
             return 0
-        
+
         if action == "remove":
             if not db_game or not db_game["id"]:
                 logger.warning("No game found in library")

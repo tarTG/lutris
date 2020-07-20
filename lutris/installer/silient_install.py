@@ -136,13 +136,13 @@ class SilenInstall:
     def on_install_error(self, message):
         self._print(self.commandline, message)
         logger.error(message)
-        exit()
+        sys.exit()
         # end program
 
     def on_install_finished(self):
         self._print(self.commandline, "finished install")
         logger.info("finished install")
-        exit()
+        sys.exit()
         # end program
 
     def input_menu(self, alias, options, preselect, has_entry, callback):
@@ -150,7 +150,7 @@ class SilenInstall:
         # not sure what to do here...
         self._print(self.commandline, "input menu not supported for silent install")
         logger.error("input menu not supported for silent install")
-        return
+
 
     def ask_user_for_file(self, message):
         if not os.path.isfile(self.binary_path[self.bin_path_coutner]):
