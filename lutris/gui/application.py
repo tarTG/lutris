@@ -149,6 +149,14 @@ class Application(Gtk.Application):
             None,
         )
         self.add_main_option(
+            "input_menu",
+            0,
+            GLib.OptionFlags.NONE,
+            GLib.OptionArg.STRING,
+            _("Input menu option for a unattended install. Needed if the install script has an input menu"),
+            None,
+        )
+        self.add_main_option(
             "exec",
             ord("e"),
             GLib.OptionFlags.NONE,
@@ -395,6 +403,7 @@ class Application(Gtk.Application):
             # Do we have an unattended install install?
             if options.contains("bin_path"):
                 action = "unattended_install"
+                self.run_in_background = True
 
         db_game = None
         if game_slug:
@@ -425,32 +434,30 @@ class Application(Gtk.Application):
             return 0
 
         # check if path is provided with install
-        if (options.contains("bin_path") or options.contains("install_path")) and not options.contains("install"):
+        if (options.contains("bin_path") or options.contains("install_path")
+           or options.contains("install_input_menu")) and not options.contains("install"):
             self._print(command_line, _("No installer provided!"))
             return 1
 
         if action == "unattended_install":
-            self.run_in_background = True
-            self.do_activate()
+            self.activate()
+            install_path = None
+            input_menu = []
             if options.contains("install_path"):
-                unattended_install.UnattendedInstall(
-                    game_slug=game_slug,
-                    installer_file=installer_file,
-                    revision=revision,
-                    binary_path=options.lookup_value("bin_path").get_string().split(";"),
-                    install_path=options.lookup_value("install_path").get_string(),
-                    cmd_print=self._print,
-                    commandline=command_line
-                )
-            else:
-                unattended_install.UnattendedInstall(
-                    game_slug=game_slug,
-                    installer_file=installer_file,
-                    revision=revision,
-                    binary_path=options.lookup_value("bin_path").get_string().split(";"),
-                    cmd_print=self._print,
-                    commandline=command_line
-                )
+                install_path = options.lookup_value("install_path").get_string()
+            if options.contains("input_menu"):
+                input_menu = options.lookup_value("input_menu").get_string().split(":")
+
+            unattended_install.UnattendedInstall(
+                game_slug=game_slug,
+                installer_file=installer_file,
+                revision=revision,
+                binary_path=options.lookup_value("bin_path").get_string().split(":"),
+                install_path=install_path,
+                install_options=input_menu,
+                cmd_print=self._print,
+                commandline=command_line
+            )
             return 0
 
         if action == "uninstall":
@@ -495,6 +502,7 @@ class Application(Gtk.Application):
                     self.do_shutdown()
                 return 0
             self.launch(Game(db_game["id"]))
+
         return 0
 
     def launch(self, game):

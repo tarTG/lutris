@@ -13,6 +13,7 @@ from lutris.util import jobs, system
 from lutris.util.log import logger
 from lutris.util.downloader import Downloader
 
+
 class UnattendedInstall:
 
     """unattended install process."""
@@ -24,6 +25,7 @@ class UnattendedInstall:
             revision=None,
             binary_path=None,
             install_path=None,
+            install_options=None,
             cmd_print=None,  # get commandline output from application.py
             commandline=None
     ):
@@ -34,11 +36,12 @@ class UnattendedInstall:
         self.revision = revision
         self.binary_path = binary_path
         self.install_path = install_path
+        self.install_options = install_options
         self.downloader = None
         self.bin_path_coutner = 0  # iterating throught the files
+        self.options_coutner = 0   # iterating throught the options
         self._print = cmd_print
         self.commandline = commandline
-
 
         if system.path_exists(self.installer_file):
             self.on_scripts_obtained(interpreter.read_script(self.installer_file))
@@ -67,24 +70,58 @@ class UnattendedInstall:
         else:
             self.script = scripts
 
-        self.validate_scripts()
+        if self.validate_scripts() != 0:
+            return
         self.prepare_install(self.script)
 
     def validate_scripts(self):
         """Auto-fixes some script aspects and checks for mandatory fields"""
-
+        # check correct syntax
         for item in ["description", "notes"]:
             self.script[item] = self.script.get(item) or ""
         for item in ["name", "runner", "version"]:
             if item not in self.script:
                 self._print(self.commandline, _("Invalid script: %s" % self.script))
-                raise ScriptingError('Missing field "%s" in install script' % item)
+                sys.exit()
+                return -1
+
+        # Check if given files match the number of needed files in the skript. Also test if the files available
+        if "files" in self.script["script"]:
+            req_files = list(filter(lambda file: "N/A" in file[next(iter(file))], self.script["script"]["files"]))
+            if len(req_files) != 0:  # do we need an argument
+                if len(req_files) != len(self.binary_path):  # is the number of arguments correct
+                    self._print(self.commandline, _("Number of provided files is wrong. %s instead of %s")
+                                % (len(self.binary_path), len(req_files)))
+                    return -1
+
+                # check if files available
+                for f in self.binary_path:
+                    if not system.path_exists(f):
+                        self._print(self.commandline, _("File %s does not exist") % f)
+                        return -1
+
+        # Check if given options match the number of needed options in the skript
+        # Also test if the options are valid. The Options must be provided in correct order required from the skript
+        menus = list(filter(lambda file: "input_menu" in file, self.script["script"]["installer"]))
+        if len(menus) != 0:   # do we need an option
+            if len(menus) != len(self.install_options):  # is the number of arguments correct
+                self._print(self.commandline, _("Number of provided options is wrong. %s instead of %s")
+                            % (len(self.install_options), len(menus)))
+                return -1
+            # check content
+            for count, menu in enumerate(menus):
+                if len(list(filter(lambda file, i=count: self.install_options[i] in file,
+                                   menu["input_menu"]["options"]))) == 0:
+                    self._print(self.commandline, _("Option %s not available for menu %s")
+                                % (self.install_options[count], count))
+                return -1
+        return 0
 
     def prepare_install(self, script):
 
         install_script = script
         if not install_script:
-            raise ValueError("Could not find script %s" % install_script)
+            self._print(self.commandline, _("Could not find script %s" % install_script))
         try:
             self.interpreter = interpreter.ScriptInterpreter(install_script, self)
         except MissingGameDependency as ex:
@@ -131,7 +168,7 @@ class UnattendedInstall:
     def continue_button_hide(self):
         pass
 
-   # required by interpreter
+    # required by interpreter
     def attach_logger(self, command):
         pass
 
@@ -152,7 +189,6 @@ class UnattendedInstall:
         # not sure what to do here...
         self._print(self.commandline, "input menu not supported for unattended install")
         logger.error("input menu not supported for unattended install")
-
 
     def ask_user_for_file(self, message):
         if not os.path.isfile(self.binary_path[self.bin_path_coutner]):
