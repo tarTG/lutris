@@ -10,8 +10,8 @@ from lutris import settings
 from lutris.installer import interpreter
 from lutris.installer.errors import MissingGameDependency, ScriptingError
 from lutris.util import jobs, system
-from lutris.util.log import logger
 from lutris.util.downloader import Downloader
+from lutris.util.log import logger
 
 
 class UnattendedInstall:

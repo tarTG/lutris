@@ -7,7 +7,6 @@ from gettext import gettext as _
 
 # Third Party Libraries
 from gi.repository import Gtk
-from gi.repository import GLib
 
 # Lutris Modules
 from lutris import api, pga, settings
