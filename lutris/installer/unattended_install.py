@@ -114,7 +114,7 @@ class UnattendedInstall:
                                    menu["input_menu"]["options"]))) == 0:
                     self._print(self.commandline, _("Option %s not available for menu %s")
                                 % (self.install_options[count], count))
-                return -1
+                    return -1
         return 0
 
     def prepare_install(self, script):
@@ -186,9 +186,11 @@ class UnattendedInstall:
 
     def input_menu(self, alias, options, preselect, has_entry, callback):
         """Display an input request as a dropdown menu with options."""
-        # not sure what to do here...
-        self._print(self.commandline, "input menu not supported for unattended install")
-        logger.error("input menu not supported for unattended install")
+
+        # if values are valid is checked in validate_scripts() function
+        self.interpreter.user_inputs.append({"alias": alias, "value": self.install_options[self.options_coutner]})
+        self.options_coutner += 1
+        self.interpreter._iter_commands()
 
     def ask_user_for_file(self, message):
         if not os.path.isfile(self.binary_path[self.bin_path_coutner]):
