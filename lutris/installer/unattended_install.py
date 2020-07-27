@@ -28,7 +28,7 @@ class UnattendedInstall:
             cmd_print=None,  # get commandline output from application.py
             commandline=None,
             quit_callback=None
-    ):
+    ):  # pylint: disable=too-many-arguments
 
         self.interpreter = None
         self.game_slug = game_slug
