@@ -1,7 +1,6 @@
 """Install games without GUI"""
 # Standard Library
 import os
-import sys
 import time
 from gettext import gettext as _
 
@@ -27,7 +26,8 @@ class UnattendedInstall:
             install_path=None,
             install_options=None,
             cmd_print=None,  # get commandline output from application.py
-            commandline=None
+            commandline=None,
+            quit_callback=None
     ):
 
         self.interpreter = None
@@ -42,6 +42,7 @@ class UnattendedInstall:
         self.options_coutner = 0   # iterating throught the options
         self._print = cmd_print
         self.commandline = commandline
+        self.quit_callback = quit_callback
 
         if system.path_exists(self.installer_file):
             self.on_scripts_obtained(interpreter.read_script(self.installer_file))
@@ -57,15 +58,12 @@ class UnattendedInstall:
 
     def on_scripts_obtained(self, scripts, _error=None):
         if not scripts:
-            self._print(self.commandline, "No install script found")
-            logger.error("No install script found")
-            return
+            self.on_install_error("No install script found")
 
         if isinstance(scripts, list):  # if scripts is a list longer than one element
             if len(scripts) != 1:
-                self._print(self.commandline, "Please provide single installer")
-                logger.error("No install script found")
-                return
+                self.on_install_error("Please provide single installer")
+
             self.script = scripts[0]
         else:
             self.script = scripts
@@ -81,8 +79,7 @@ class UnattendedInstall:
             self.script[item] = self.script.get(item) or ""
         for item in ["name", "runner", "version"]:
             if item not in self.script:
-                self._print(self.commandline, _("Invalid script: %s" % self.script))
-                sys.exit()
+                self.on_install_error(_("Invalid script: %s" % self.script))
                 return -1
 
         # Check if given files match the number of needed files in the skript. Also test if the files available
@@ -90,14 +87,13 @@ class UnattendedInstall:
             req_files = list(filter(lambda file: "N/A" in file[next(iter(file))], self.script["script"]["files"]))
             if len(req_files) != 0:  # do we need an argument
                 if len(req_files) != len(self.binary_path):  # is the number of arguments correct
-                    self._print(self.commandline, _("Number of provided files is wrong. %s instead of %s")
-                                % (len(self.binary_path), len(req_files)))
+                    self.on_install_error(_("Number of provided files is wrong. %s instead of %s")
+                                          % (len(self.binary_path), len(req_files)))
                     return -1
-
                 # check if files available
                 for f in self.binary_path:
                     if not system.path_exists(f):
-                        self._print(self.commandline, _("File %s does not exist") % f)
+                        self.on_install_error(_("File %s does not exist") % f)
                         return -1
 
         # Check if given options match the number of needed options in the skript
@@ -105,15 +101,16 @@ class UnattendedInstall:
         menus = list(filter(lambda file: "input_menu" in file, self.script["script"]["installer"]))
         if len(menus) != 0:   # do we need an option
             if len(menus) != len(self.install_options):  # is the number of arguments correct
-                self._print(self.commandline, _("Number of provided options is wrong. %s instead of %s")
-                            % (len(self.install_options), len(menus)))
+                self.on_install_error(_("Number of provided options is wrong. %s instead of %s")
+                                      % (len(self.install_options), len(menus)))
                 return -1
+
             # check content
             for count, menu in enumerate(menus):
                 if len(list(filter(lambda file, i=count: self.install_options[i] in file,
                                    menu["input_menu"]["options"]))) == 0:
-                    self._print(self.commandline, _("Option %s not available for menu %s")
-                                % (self.install_options[count], count))
+                    self.on_install_error(_("Option %s not available for menu %s")
+                                          % (self.install_options[count], count))
                     return -1
         return 0
 
@@ -121,7 +118,8 @@ class UnattendedInstall:
 
         install_script = script
         if not install_script:
-            self._print(self.commandline, _("Could not find script %s" % install_script))
+            self.on_install_error(_("Could not find script %s" % install_script))
+            return
         try:
             self.interpreter = interpreter.ScriptInterpreter(install_script, self)
         except MissingGameDependency as ex:
@@ -145,8 +143,7 @@ class UnattendedInstall:
         try:
             self.interpreter.check_runner_install()
         except ScriptingError as ex:
-            self._print(self.commandline, ex.__str__)
-            logger.error(ex.__str__)
+            self.on_install_error(ex.__str__)
             return
 
     def set_status(self, text):
@@ -175,13 +172,13 @@ class UnattendedInstall:
     def on_install_error(self, message):
         self._print(self.commandline, message)
         logger.error(message)
-        sys.exit()
+        self.quit_callback()
         # end program
 
     def on_install_finished(self):
         self._print(self.commandline, "finished install")
         logger.debug("finished install")
-        sys.exit()
+        self.quit_callback()
         # end program
 
     def input_menu(self, alias, options, preselect, has_entry, callback):
@@ -194,8 +191,7 @@ class UnattendedInstall:
 
     def ask_user_for_file(self, message):
         if not os.path.isfile(self.binary_path[self.bin_path_coutner]):
-            self._print(self.commandline, _("%s is not a file" % self.binary_path[self.bin_path_coutner]))
-            logger.warning("%s is not a file", self.binary_path[self.bin_path_coutner])
+            self.on_install_error(_("%s is not a file" % self.binary_path[self.bin_path_coutner]))
             return
         logger.info("use %s", self.binary_path[self.bin_path_coutner])
         self.interpreter.file_selected(self.binary_path[self.bin_path_coutner])
@@ -205,9 +201,8 @@ class UnattendedInstall:
         try:
             self.downloader = Downloader(file_uri, dest_file, referer=referer, overwrite=True)
         except RuntimeError as ex:
-            self._print(self.commandline, _("Downloading  %s to %s has an error: %s") %
-                        (file_uri, dest_file, ex.__str__))
-            logger.error("Downloading  %s to %s has an error: %s", file_uri, dest_file, ex.__str__)
+            self.on_install_error(_("Downloading  %s to %s has an error: %s") %
+                                  (file_uri, dest_file, ex.__str__))
             return None
 
         self._print(self.commandline, _("Downloading %s to %s") % (file_uri, dest_file))
@@ -224,13 +219,11 @@ class UnattendedInstall:
         """Show download progress."""
         if self.downloader.state in [self.downloader.CANCELLED, self.downloader.ERROR]:
             if self.downloader.state == self.downloader.CANCELLED:
-                self._print(self.commandline, "Download interrupted")
-                logger.error("Download interrupted")
+                self.on_install_error("Download interrupted")
             else:
-                self._print(self.commandline, self.downloader.error)
+                self.on_install_error(self.downloader.error)
             if self.downloader.state == self.downloader.CANCELLED:
-                self._print(self.commandline, "Download canceled")
-                logger.error("Download canceled")
+                self.on_install_error("Download canceled")
             return
         megabytes = 1024 * 1024
         self._print(self.commandline, _((
@@ -249,7 +242,8 @@ class UnattendedInstall:
                 callback_data = callback_data or {}
                 callback(**callback_data)
             except Exception as ex:  # pylint: disable:broad-except
-                raise ScriptingError(str(ex))
+                self.on_install_error(str(ex))
+                return
 
         self.interpreter.abort_current_task = None
         self.interpreter.iter_game_files()

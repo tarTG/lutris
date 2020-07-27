@@ -456,7 +456,8 @@ class Application(Gtk.Application):
                 install_path=install_path,
                 install_options=input_menu,
                 cmd_print=self._print,
-                commandline=command_line
+                commandline=command_line,
+                quit_callback=self.do_shutdown
             )
             return 0
 
